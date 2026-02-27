@@ -275,6 +275,8 @@ export const useDeepMinerEngine = () => {
       isCompleted: false,
       hasStarted: false,
       history: prev.history,
+      isLoadingHistory: false,
+      historyError: null,
     }));
   }, []);
 
@@ -293,7 +295,9 @@ export const useDeepMinerEngine = () => {
               isProcessing: false,
               isCompleted: false,
               hasStarted: false,
-              history: updatedHistory
+              history: updatedHistory,
+              isLoadingHistory: false,
+              historyError: null,
           };
       }
 
