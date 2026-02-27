@@ -43,8 +43,8 @@ export interface EngineState {
 const checkInterceptor = (text: string): { blocked: boolean; warning?: string } => {
   if (/(不知道|忘了|不清楚|没想好|跳过)/.test(text)) {
     return { 
-        blocked: true, 
-        warning: '⚠️ 核心逻辑缺失！请补充具体事实，哪怕是目前遇到的困难，也不能直接跳过。' 
+      blocked: true, 
+      warning: '⚠️ 核心逻辑缺失！请补充具体事实，哪怕是目前遇到的困难，也不能直接跳过。' 
     };
   }
   return { blocked: false };
@@ -231,6 +231,7 @@ export const useDeepMinerEngine = () => {
 
       const check = checkInterceptor(userInput);
       if (check.blocked) {
+        // Return object so caller (UI) can handle warning
         return { blocked: true, warning: check.warning || '输入无效' };
       }
 

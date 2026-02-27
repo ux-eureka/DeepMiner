@@ -44,10 +44,22 @@ export const InputArea: React.FC = () => {
   }, [warning]);
 
   const handleSend = async () => {
+    // Check interception BEFORE sending to engine
+    // Since interceptor logic is inside engine's sendMessage (processInput),
+    // and processInput returns { blocked: boolean; warning?: string } | void
+    // We rely on the return value.
+    // However, the interceptor logic itself is synchronous and simple.
+    // To provide instant feedback without async delay if possible, we could check here too,
+    // but better to keep single source of truth in the engine.
+    
+    // BUT: If the user inputs "忘记了", the engine's processInput will return blocked object.
+    // Let's ensure we handle that return value correctly.
+    
     if (text.trim() && state.currentMode) {
       const result = await sendMessage(text);
       if (result && result.blocked) {
           setWarning(result.warning || "输入被拦截");
+          // Do NOT clear text if blocked, so user can edit it
       } else {
           setText('');
           setWarning(null);
@@ -62,6 +74,8 @@ export const InputArea: React.FC = () => {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      // Add composition check to avoid triggering send during IME composition (e.g. Pinyin)
+      if (e.nativeEvent.isComposing || textareaRef.current?.getAttribute('data-composing') === 'true') return;
       handleSend();
     }
   };
@@ -113,6 +127,17 @@ export const InputArea: React.FC = () => {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
+            // Add composition event handlers
+            onCompositionStart={() => {
+                // We can use a ref or data attribute to track composition state if nativeEvent.isComposing is not reliable across all browsers,
+                // but nativeEvent.isComposing is standard.
+                // However, React's onKeyDown might fire before compositionEnd in some cases.
+                // A common practice is to use a ref flag.
+                textareaRef.current?.setAttribute('data-composing', 'true');
+            }}
+            onCompositionEnd={() => {
+                textareaRef.current?.removeAttribute('data-composing');
+            }}
             placeholder={state.currentMode ? "在此输入您的回答..." : ""} 
             className="w-full min-h-[80px] max-h-[200px] p-4 pr-12 pb-14 bg-white border border-zinc-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent resize-none text-sm leading-relaxed disabled:bg-gray-50"
             disabled={!state.currentMode || state.isCompleted || isLoading}
