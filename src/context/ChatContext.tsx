@@ -5,7 +5,7 @@ import { ChatState, ChatContextType } from '../types';
 export const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
-  const { state: engineState, initMode, sendMessage, resetEngine, loadSession, addCustomMode } = useDeepMinerEngine();
+  const { state: engineState, initMode, sendMessage, resetEngine, loadSession, addCustomMode, deleteSession } = useDeepMinerEngine();
   
   // Modal states (managed locally here as they are UI specific, not Engine specific)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -61,7 +61,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       initMode,
       resetChat: resetEngine,
       loadSession,
-      addCustomMode
+      addCustomMode,
+      deleteSession
     }}>
       {children}
     </ChatContext.Provider>

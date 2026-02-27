@@ -12,9 +12,7 @@ export const InputArea: React.FC = () => {
   const { sendMessage, initMode, state, dispatch } = useChatFlow();
   const isLocked = useModeLock();
   const [text, setText] = useState('');
-  const [showDropdown, setShowDropdown] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const currentModeName = state.currentMode ? MODE_CONFIG[state.currentMode]?.name : '选择模式';
 
@@ -34,17 +32,6 @@ export const InputArea: React.FC = () => {
         return () => clearTimeout(timer);
     }
   }, [warning]);
-
-  useEffect(() => {
-    // Click outside to close dropdown
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const handleSend = async () => {
     if (text.trim() && state.currentMode) {
@@ -69,6 +56,20 @@ export const InputArea: React.FC = () => {
     }
   };
 
+  const [showModeSelector, setShowModeSelector] = useState(false);
+  const modeSelectorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Click outside to close mode selector
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modeSelectorRef.current && !modeSelectorRef.current.contains(event.target as Node)) {
+        setShowModeSelector(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <div className={styles.root}>
       <div className={containerStyles.container}>
@@ -83,64 +84,77 @@ export const InputArea: React.FC = () => {
           )}
 
           <div className="relative">
+          {/* Mode Selection Overlay/Trigger */}
+          {!state.currentMode && (
+             <div className="absolute top-4 left-4 z-10">
+                <button
+                    onClick={() => setShowModeSelector(true)}
+                    className="text-blue-600 hover:underline font-medium focus:outline-none"
+                >
+                    [选择模式]
+                </button>
+             </div>
+          )}
+
           <textarea
             ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={state.currentMode ? "在此输入您的回答..." : "请选择一个诊断模式以开始..."}
+            placeholder={state.currentMode ? "在此输入您的回答..." : "请选择诊断模式以开始              "} // Padding for the button overlay
             className="w-full min-h-[80px] max-h-[200px] p-4 pr-12 pb-14 bg-white border border-zinc-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent resize-none text-sm leading-relaxed"
             disabled={!state.currentMode || state.isCompleted}
           />
           
-          {/* Model Preset Selector - Bottom Left */}
-          <div className="absolute left-3 bottom-3 z-20">
-              <ModelPresetSelector />
-          </div>
-          
-          {/* Mode Selector - Positioned inside textarea at bottom right, next to Send button */}
-          <div className="absolute right-14 bottom-3" ref={dropdownRef}>
-            <button
-              onClick={() => !isLocked && setShowDropdown(!showDropdown)}
-              className={cn(
-                "flex items-center justify-between px-3 py-2 text-[13px] font-medium rounded-md transition-colors max-w-[180px]",
-                isLocked 
-                  ? "text-zinc-400 cursor-not-allowed" 
-                  : "text-zinc-600 hover:bg-zinc-100"
-              )}
-              disabled={isLocked}
-            >
-              <span className="truncate mr-1">{currentModeName}</span>
-              <ChevronDown className="w-3.5 h-3.5 shrink-0" />
-            </button>
-
-            {showDropdown && (
-              <div className="absolute bottom-full mb-1 right-0 w-56 bg-white border border-zinc-200 rounded-lg shadow-xl py-1 z-20">
+          {/* Mode Selector Popup */}
+          {showModeSelector && (
+              <div 
+                ref={modeSelectorRef}
+                className="absolute top-12 left-4 w-64 bg-white border border-zinc-200 rounded-lg shadow-xl py-1 z-30 animate-in fade-in zoom-in duration-200"
+              >
                 {Object.values(MODE_CONFIG).map((mode) => (
                   <button
                     key={mode.id}
-                    className="w-full text-left px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors truncate"
+                    className="w-full text-left px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors truncate flex items-center justify-between group"
                     onClick={() => {
                       initMode(mode.id);
-                      setShowDropdown(false);
+                      setShowModeSelector(false);
                     }}
                   >
-                    {mode.name}
+                    <span>{mode.name}</span>
+                    <span className="opacity-0 group-hover:opacity-100 text-blue-500 text-xs">选择</span>
                   </button>
                 ))}
                 <div className="h-px bg-zinc-100 my-1" />
                 <button
-                  className="w-full text-left px-4 py-2 text-sm text-blue-600 font-medium hover:bg-blue-50 transition-colors flex items-center"
+                  className="w-full text-left px-4 py-2.5 text-sm text-blue-600 font-medium hover:bg-blue-50 transition-colors flex items-center"
                   onClick={() => {
                     dispatch({ type: 'TOGGLE_CREATE_MODAL', payload: true });
-                    setShowDropdown(false);
+                    setShowModeSelector(false);
                   }}
                 >
                   <Plus className="w-3 h-3 mr-2" />
                   新建模式
                 </button>
               </div>
-            )}
+          )}
+          
+          {/* Model Preset Selector - Bottom Left */}
+          <div className="absolute left-3 bottom-3 z-20">
+              <ModelPresetSelector />
+          </div>
+          
+          {/* Mode Indicator - Positioned inside textarea at bottom right, next to Send button */}
+          <div className="absolute right-14 bottom-3">
+            <button
+              className={cn(
+                "flex items-center justify-between px-3 py-2 text-[13px] font-medium rounded-md transition-colors max-w-[180px]",
+                "text-zinc-400 bg-transparent cursor-default" 
+              )}
+              disabled={true}
+            >
+              <span className="truncate mr-1">{currentModeName}</span>
+            </button>
           </div>
 
           {/* Send Button */}

@@ -258,6 +258,29 @@ export const useDeepMinerEngine = () => {
     }));
   }, []);
 
+  const deleteSession = useCallback((sessionId: string) => {
+    setState(prev => {
+      const updatedHistory = prev.history.filter(h => h.id !== sessionId);
+      
+      // If we deleted the active session, reset to initial state
+      if (prev.messages[0]?.id === sessionId) {
+          return {
+              ...prev,
+              currentModeId: null,
+              currentPhase: 1,
+              globalContext: {},
+              messages: [],
+              isProcessing: false,
+              isCompleted: false,
+              hasStarted: false,
+              history: updatedHistory
+          };
+      }
+
+      return { ...prev, history: updatedHistory };
+    });
+  }, []);
+
   return {
     state,
     initMode,
@@ -265,6 +288,7 @@ export const useDeepMinerEngine = () => {
     resetEngine,
     loadSession,
     addCustomMode,
+    deleteSession,
   };
 };
 

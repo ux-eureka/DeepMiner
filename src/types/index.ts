@@ -51,4 +51,5 @@ export interface ChatContextType {
   resetChat: () => void;
   loadSession: (sessionId: string) => void; // Added loadSession
   addCustomMode: (mode: { id: string; name: string; phases: Record<string, { title: string; task: string }> }) => void;
+  deleteSession: (sessionId: string) => void;
 }
