@@ -5,11 +5,18 @@ import { ChatState, ChatContextType } from '../types';
 export const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
-  const { state: engineState, initMode, sendMessage, resetEngine, loadSession } = useDeepMinerEngine();
+  const { state: engineState, initMode, sendMessage, resetEngine, loadSession, addCustomMode } = useDeepMinerEngine();
   
   // Modal states (managed locally here as they are UI specific, not Engine specific)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
+  // Auto-open report modal when diagnostic is completed
+  React.useEffect(() => {
+    if (engineState.isCompleted) {
+      setIsReportModalOpen(true);
+    }
+  }, [engineState.isCompleted]);
 
   // Adapter: Map Engine State to ChatState
   const contextState: ChatState = {
@@ -53,7 +60,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       sendMessage,
       initMode,
       resetChat: resetEngine,
-      loadSession
+      loadSession,
+      addCustomMode
     }}>
       {children}
     </ChatContext.Provider>

@@ -3,6 +3,7 @@ import { useChatFlow } from '../hooks/useChatFlow';
 import { SystemCard } from './ChatArea/SystemCard';
 import { UserBubble } from './ChatArea/UserBubble';
 import { InputArea } from './ChatArea/InputArea';
+import { WelcomeGuide } from './ChatArea/WelcomeGuide';
 import styles from './ChatArea.module.css';
 import containerStyles from '../styles/QuestionContainer.module.css';
 
@@ -12,7 +13,9 @@ export const ChatArea: React.FC = () => {
 
   useEffect(() => {
     // Scroll to bottom when messages change
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (state.messages.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [state.messages, state.isLoading]);
 
   return (
@@ -20,9 +23,7 @@ export const ChatArea: React.FC = () => {
       <div className={`${styles.scrollArea} scrollbar-thin`}>
         <div className={containerStyles.container}>
           {state.messages.length === 0 && !state.currentMode ? (
-            <div className="flex flex-col items-center justify-center h-full text-zinc-400">
-              <p>Select a mode to start diagnosis</p>
-            </div>
+            <WelcomeGuide />
           ) : (
             <>
               {state.messages.map((msg) =>

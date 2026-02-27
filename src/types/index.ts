@@ -1,8 +1,6 @@
-import { PhaseConfig } from '../data/questionsConfig';
-
 export interface PhaseData {
   title: string;
-  questions: string[];
+  questions?: string[];
 }
 
 export interface Message {
@@ -52,4 +50,5 @@ export interface ChatContextType {
   initMode: (modeId: string) => void;
   resetChat: () => void;
   loadSession: (sessionId: string) => void; // Added loadSession
+  addCustomMode: (mode: { id: string; name: string; phases: Record<string, { title: string; task: string }> }) => void;
 }

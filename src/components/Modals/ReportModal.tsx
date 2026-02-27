@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, CheckCircle, Download, Loader2, FileText, AlertTriangle } from 'lucide-react';
 import { useChatFlow } from '../../hooks/useChatFlow';
-import { QUESTIONS_CONFIG } from '../../data/questionsConfig';
+import { MODE_CONFIG } from '../../config/promptsConfig';
 import jsPDF from 'jspdf';
 import confetti from 'canvas-confetti';
 
@@ -14,7 +14,7 @@ export const ReportModal: React.FC = () => {
 
   if (!state.isReportModalOpen) return null;
 
-  const mode = state.currentMode ? QUESTIONS_CONFIG[state.currentMode] : null;
+  const mode = state.currentMode ? MODE_CONFIG[state.currentMode] : null;
 
   // Auto-generate report when modal opens
   useEffect(() => {
@@ -34,7 +34,7 @@ export const ReportModal: React.FC = () => {
         const steps = ['正在解析对话上下文...', '正在提取关键业务指标...', '正在生成诊断建议...', '正在排版报告文档...'];
         
         for (let i = 0; i < steps.length; i++) {
-            await new Promise(resolve => setTimeout(resolve, 800)); // Simulate work
+            await new Promise(resolve => setTimeout(resolve, 300)); // Reduced time for faster experience
             setProgress(((i + 1) / steps.length) * 90);
         }
 
@@ -45,7 +45,7 @@ export const ReportModal: React.FC = () => {
         
     } catch (err) {
         console.error("Report generation failed:", err);
-        setError("报告生成失败，请稍后重试。");
+        setError("报告生成失败，请重试。");
     } finally {
         setIsGenerating(false);
     }
@@ -86,7 +86,7 @@ export const ReportModal: React.FC = () => {
 
       // Title
       doc.setFontSize(20);
-      doc.text(mode?.mode_name || 'Analysis Report', margin, y);
+      doc.text(mode?.name || 'Analysis Report', margin, y);
       y += 15;
 
       // Date
@@ -101,7 +101,7 @@ export const ReportModal: React.FC = () => {
 
       state.messages.filter(m => m.type === 'user').forEach((msg) => {
           const phaseId = msg.phase || 'Unknown';
-          const phase = mode?.phases[phaseId];
+          const phase = mode?.phases[String(phaseId)];
           
           // Check page break
           if (y > pageHeight - 40) {
@@ -195,7 +195,7 @@ export const ReportModal: React.FC = () => {
             {!error && (
                 <div className={`bg-white border border-zinc-200 rounded-lg shadow-sm p-8 max-w-4xl mx-auto transition-opacity duration-500 ${isGenerating ? 'opacity-50 blur-[1px]' : 'opacity-100'}`}>
                     <div className="mb-8 border-b border-zinc-100 pb-6">
-                        <h1 className="text-3xl font-bold text-zinc-900 mb-2">{mode?.mode_name || 'Analysis Report'}</h1>
+                        <h1 className="text-3xl font-bold text-zinc-900 mb-2">{mode?.name || 'Analysis Report'}</h1>
                         <p className="text-zinc-500 text-sm">Generated on {new Date().toLocaleDateString()}</p>
                     </div>
 
@@ -203,7 +203,7 @@ export const ReportModal: React.FC = () => {
                         {/* Render Chat History as Report */}
                         {state.messages.filter(m => m.type === 'user').map((msg) => {
                             const phaseId = msg.phase || 'Unknown';
-                            const phase = mode?.phases[phaseId];
+                            const phase = mode?.phases[String(phaseId)];
                             return (
                                 <div key={msg.id} className="border-l-4 border-slate-200 pl-4 py-1">
                                     <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-2">

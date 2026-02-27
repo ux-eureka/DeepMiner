@@ -1,13 +1,13 @@
 import { useContext } from 'react';
 import { ChatContext } from '../context/ChatContext';
-import { QUESTIONS_CONFIG } from '../data/questionsConfig';
+import { MODE_CONFIG } from '../config/promptsConfig';
 import { PhaseProgress } from '../types';
 
 export const useProgress = (): PhaseProgress[] => {
   const { state } = useContext(ChatContext);
   if (!state.currentMode) return [];
   
-  const mode = QUESTIONS_CONFIG[state.currentMode];
+  const mode = MODE_CONFIG[state.currentMode];
   if (!mode) return [];
 
   const phaseKeys = Object.keys(mode.phases).sort((a, b) => parseInt(a) - parseInt(b));

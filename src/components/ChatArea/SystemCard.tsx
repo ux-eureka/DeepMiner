@@ -7,8 +7,8 @@ interface SystemCardProps {
   phase?: string;
   type?: 'system' | 'system_warning';
   data?: {
-      title: string;
-      questions: string[];
+    title: string;
+    questions?: string[];
   };
 }
 
@@ -31,18 +31,22 @@ export const SystemCard: React.FC<SystemCardProps> = ({ content, phase, type = '
             </span>
             <h3 className="text-base font-bold text-zinc-800">{data.title}</h3>
           </div>
-          <div className="space-y-3">
-            {data.questions.map((q, idx) => (
-              <div key={idx} className="flex items-start">
-                <span className="text-slate-400 text-xs font-medium mr-2 mt-0.5 min-w-[24px]">
-                  {phase}.{idx + 1}
-                </span>
-                <p className="text-sm text-zinc-700 leading-relaxed font-medium">
-                  {q.replace(/^\d+\.\d+\s*/, '')}
-                </p>
-              </div>
-            ))}
-          </div>
+          {data.questions && data.questions.length > 0 ? (
+            <div className="space-y-3">
+              {data.questions.map((q, idx) => (
+                <div key={idx} className="flex items-start">
+                  <span className="text-slate-400 text-xs font-medium mr-2 mt-0.5 min-w-[24px]">
+                    {phase}.{idx + 1}
+                  </span>
+                  <p className="text-sm text-zinc-700 leading-relaxed font-medium">
+                    {q.replace(/^\d+\.\d+\s*/, '')}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm whitespace-pre-wrap leading-relaxed text-zinc-700">{content}</p>
+          )}
         </div>
       ) : (
         <div

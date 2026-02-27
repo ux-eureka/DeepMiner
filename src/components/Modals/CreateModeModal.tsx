@@ -3,7 +3,7 @@ import { X, AlertCircle } from 'lucide-react';
 import { useChatFlow } from '../../hooks/useChatFlow';
 
 export const CreateModeModal: React.FC = () => {
-  const { state, dispatch } = useChatFlow();
+  const { state, dispatch, addCustomMode, initMode } = useChatFlow();
   const [jsonInput, setJsonInput] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -16,13 +16,25 @@ export const CreateModeModal: React.FC = () => {
       }
       const parsed = JSON.parse(jsonInput);
       // Validate structure roughly
-      if (!parsed.mode_id || !parsed.phases) {
-          throw new Error("Invalid JSON structure. Missing mode_id or phases.");
+      const id = parsed.id || parsed.mode_id;
+      const name = parsed.name || parsed.mode_name;
+      const phases = parsed.phases;
+
+      if (!id || !name || !phases || typeof phases !== 'object') {
+        throw new Error("Invalid JSON structure. Missing id/name/phases.");
       }
-      
-      // Save logic (mock)
-      console.log("Saved Mode:", parsed);
-      // Ideally we would add to custom modes state
+
+      const normalizedPhases: Record<string, { title: string; task: string }> = {};
+      for (const [phaseKey, phaseValue] of Object.entries(phases)) {
+        const v = phaseValue as any;
+        if (!v || typeof v !== 'object' || !v.title || !v.task) {
+          throw new Error(`Invalid phase "${phaseKey}". Each phase must include title and task.`);
+        }
+        normalizedPhases[String(phaseKey)] = { title: String(v.title), task: String(v.task) };
+      }
+
+      addCustomMode({ id: String(id), name: String(name), phases: normalizedPhases });
+      initMode(String(id));
       
       dispatch({ type: 'TOGGLE_CREATE_MODAL', payload: false });
       setJsonInput('');
@@ -58,10 +70,10 @@ export const CreateModeModal: React.FC = () => {
                     if (error) setError(null);
                 }}
                 placeholder={`{
-  "mode_id": "custom_mode",
-  "mode_name": "My Custom Mode",
+  "id": "custom_mode",
+  "name": "My Custom Mode",
   "phases": {
-    "1": { "title": "Phase 1", "questions": ["Question 1"] }
+    "1": { "title": "Phase 1", "task": "你希望 AI 在这一阶段追问的核心任务是什么？" }
   }
 }`}
                 className="w-full h-64 p-4 font-mono text-xs bg-zinc-50 border border-zinc-300 rounded-md focus:ring-2 focus:ring-slate-500 focus:border-transparent resize-none outline-none"

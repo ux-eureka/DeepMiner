@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, ChevronDown, Plus } from 'lucide-react';
 import { useChatFlow } from '../../hooks/useChatFlow';
 import { useModeLock } from '../../hooks/useModeLock';
-import { QUESTIONS_CONFIG } from '../../data/questionsConfig';
+import { MODE_CONFIG } from '../../config/promptsConfig';
 import { cn } from '../../utils/cn';
 import { ModelPresetSelector } from './ModelPresetSelector';
 import styles from './InputArea.module.css';
@@ -16,7 +16,7 @@ export const InputArea: React.FC = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const currentModeName = state.currentMode ? QUESTIONS_CONFIG[state.currentMode]?.mode_name : 'Select Mode';
+  const currentModeName = state.currentMode ? MODE_CONFIG[state.currentMode]?.name : '选择模式';
 
   const [warning, setWarning] = useState<string | null>(null); // State for inline warning
 
@@ -88,7 +88,7 @@ export const InputArea: React.FC = () => {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={state.currentMode ? "Type your answer..." : "Please select a mode to start..."}
+            placeholder={state.currentMode ? "在此输入您的回答..." : "请选择一个诊断模式以开始..."}
             className="w-full min-h-[80px] max-h-[200px] p-4 pr-12 pb-14 bg-white border border-zinc-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent resize-none text-sm leading-relaxed"
             disabled={!state.currentMode || state.isCompleted}
           />
@@ -116,16 +116,16 @@ export const InputArea: React.FC = () => {
 
             {showDropdown && (
               <div className="absolute bottom-full mb-1 right-0 w-56 bg-white border border-zinc-200 rounded-lg shadow-xl py-1 z-20">
-                {Object.values(QUESTIONS_CONFIG).map((mode) => (
+                {Object.values(MODE_CONFIG).map((mode) => (
                   <button
-                    key={mode.mode_id}
+                    key={mode.id}
                     className="w-full text-left px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors truncate"
                     onClick={() => {
-                      initMode(mode.mode_id);
+                      initMode(mode.id);
                       setShowDropdown(false);
                     }}
                   >
-                    {mode.mode_name}
+                    {mode.name}
                   </button>
                 ))}
                 <div className="h-px bg-zinc-100 my-1" />
@@ -137,7 +137,7 @@ export const InputArea: React.FC = () => {
                   }}
                 >
                   <Plus className="w-3 h-3 mr-2" />
-                  Create Mode
+                  新建模式
                 </button>
               </div>
             )}
