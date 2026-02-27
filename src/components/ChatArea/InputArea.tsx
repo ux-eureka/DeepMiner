@@ -164,17 +164,19 @@ export const InputArea: React.FC = () => {
           </div>
           
           {/* Mode Indicator - Positioned inside textarea at bottom right, next to Send button */}
-          <div className="absolute right-14 bottom-3">
-            <button
-              className={cn(
-                "flex items-center justify-between px-3 py-2 text-[13px] font-medium rounded-md transition-colors max-w-[180px]",
-                "text-zinc-400 bg-transparent cursor-default" 
-              )}
-              disabled={true}
-            >
-              <span className="truncate mr-1">{currentModeName}</span>
-            </button>
-          </div>
+          {state.currentMode && (
+            <div className="absolute right-14 bottom-3">
+                <button
+                className={cn(
+                    "flex items-center justify-between px-3 py-2 text-[13px] font-medium rounded-md transition-colors max-w-[180px]",
+                    "text-zinc-400 bg-transparent cursor-default" 
+                )}
+                disabled={true}
+                >
+                <span className="truncate mr-1">{currentModeName}</span>
+                </button>
+            </div>
+          )}
 
           {/* Send Button */}
           <button

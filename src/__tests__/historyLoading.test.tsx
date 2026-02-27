@@ -144,5 +144,9 @@ describe('History Loading & Error Handling', () => {
     expect(selectButton).toBeInTheDocument();
     expect(selectButton).toHaveClass('text-[#28a745]');
     expect(selectButton).toHaveClass('font-semibold');
+
+    // Verify static mode indicator is hidden when no mode is selected
+    // The static button would show "选择模式" if visible
+    expect(screen.queryByText('选择模式', { exact: true })).not.toBeInTheDocument();
   });
 });
