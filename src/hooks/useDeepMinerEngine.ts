@@ -172,6 +172,15 @@ export const useDeepMinerEngine = () => {
       const session = prev.history.find(h => h.id === sessionId);
       if (!session) return prev;
 
+      // Ensure MODE_CONFIG has the mode (handle custom modes)
+      if (!MODE_CONFIG[session.modeId]) {
+         // Optionally try to restore custom mode if stored in session, 
+         // but currently session doesn't store mode definition.
+         // For now, if mode is missing, we might want to log error or fallback.
+         console.warn(`Mode ${session.modeId} not found in config.`);
+         // If it's a custom mode that was lost on reload, we can't fully restore without definition.
+      }
+
       return {
         ...prev,
         currentModeId: session.modeId,
