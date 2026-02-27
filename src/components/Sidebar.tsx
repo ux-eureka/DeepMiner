@@ -27,8 +27,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   
   // Use real history from state
   const history = state.history || [];
+  const isLoading = state.isLoadingHistory;
 
   const handleHistoryClick = (id: string) => {
+    if (isLoading) return;
     loadSession(id);
     if (isMobile) onCloseMobile();
   };

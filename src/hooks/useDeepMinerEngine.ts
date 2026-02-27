@@ -36,6 +36,8 @@ export interface EngineState {
   isCompleted: boolean;
   hasStarted: boolean;
   history: ChatHistoryItem[];
+  isLoadingHistory: boolean;
+  historyError: string | null;
 }
 
 const checkInterceptor = (text: string): { blocked: boolean; warning?: string } => {
@@ -54,6 +56,8 @@ export const useDeepMinerEngine = () => {
     isCompleted: false,
     hasStarted: false,
     history: [],
+    isLoadingHistory: false,
+    historyError: null,
   });
 
   useEffect(() => {
@@ -167,32 +171,48 @@ export const useDeepMinerEngine = () => {
     []
   );
 
-  const loadSession = useCallback((sessionId: string) => {
-    setState(prev => {
-      const session = prev.history.find(h => h.id === sessionId);
-      if (!session) return prev;
+  const loadSession = useCallback(async (sessionId: string) => {
+    setState(prev => ({ ...prev, isLoadingHistory: true, historyError: null }));
 
-      // Ensure MODE_CONFIG has the mode (handle custom modes)
-      if (!MODE_CONFIG[session.modeId]) {
-         // Optionally try to restore custom mode if stored in session, 
-         // but currently session doesn't store mode definition.
-         // For now, if mode is missing, we might want to log error or fallback.
-         console.warn(`Mode ${session.modeId} not found in config.`);
-         // If it's a custom mode that was lost on reload, we can't fully restore without definition.
-      }
+    try {
+      // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-      return {
-        ...prev,
-        currentModeId: session.modeId,
-        currentPhase: session.currentPhase,
-        globalContext: session.globalContext,
-        messages: session.messages,
-        isProcessing: false,
-        isCompleted: session.isCompleted,
-        hasStarted: true,
-        history: prev.history.map(h => ({ ...h, active: h.id === sessionId })),
-      };
-    });
+      setState(prev => {
+        const session = prev.history.find(h => h.id === sessionId);
+        if (!session) {
+          return { ...prev, isLoadingHistory: false, historyError: '会话不存在或已被删除' };
+        }
+
+        // Ensure MODE_CONFIG has the mode (handle custom modes)
+        if (!MODE_CONFIG[session.modeId]) {
+           return { 
+             ...prev, 
+             isLoadingHistory: false, 
+             historyError: `无法加载会话：模式 "${session.modeId}" 定义缺失。请确认是否为自定义模式且已重新导入。` 
+           };
+        }
+
+        return {
+          ...prev,
+          currentModeId: session.modeId,
+          currentPhase: session.currentPhase,
+          globalContext: session.globalContext,
+          messages: session.messages,
+          isProcessing: false,
+          isCompleted: session.isCompleted,
+          hasStarted: true,
+          isLoadingHistory: false,
+          history: prev.history.map(h => ({ ...h, active: h.id === sessionId })),
+        };
+      });
+    } catch (error) {
+      setState(prev => ({ 
+        ...prev, 
+        isLoadingHistory: false, 
+        historyError: '加载会话失败，请检查网络或重试。' 
+      }));
+    }
   }, []);
 
   const processInput = useCallback(

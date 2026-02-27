@@ -29,6 +29,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     isCreateModalOpen,
     isReportModalOpen,
     history: engineState.history, // Pass history to context
+    isLoadingHistory: engineState.isLoadingHistory,
+    historyError: engineState.historyError,
   };
 
   // Mock Dispatch for compatibility with existing reducers if needed

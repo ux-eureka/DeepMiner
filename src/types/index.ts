@@ -34,6 +34,8 @@ export interface ChatState {
   isCreateModalOpen: boolean;
   isReportModalOpen: boolean;
   history?: ChatHistoryItem[]; // Added history
+  isLoadingHistory?: boolean;
+  historyError?: string | null;
 }
 
 export interface PhaseProgress {

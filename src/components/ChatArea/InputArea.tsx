@@ -13,10 +13,20 @@ export const InputArea: React.FC = () => {
   const isLocked = useModeLock();
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Use state.isLoadingHistory for loading feedback
+  const isLoading = state.isLoadingHistory;
 
   const currentModeName = state.currentMode ? MODE_CONFIG[state.currentMode]?.name : '选择模式';
 
   const [warning, setWarning] = useState<string | null>(null); // State for inline warning
+
+  // Sync engine history error to warning
+  useEffect(() => {
+    if (state.historyError) {
+        setWarning(state.historyError);
+    }
+  }, [state.historyError]);
 
   useEffect(() => {
     // Auto-resize textarea
@@ -84,12 +94,14 @@ export const InputArea: React.FC = () => {
           )}
 
           <div className="relative">
-          {/* Mode Selection Overlay/Trigger */}
+          {/* Mode Selection Overlay - Replaces Placeholder */}
           {!state.currentMode && (
-             <div className="absolute top-4 left-4 z-10">
+             <div className="absolute inset-0 p-4 z-10 pointer-events-none flex flex-wrap items-start content-start gap-1 text-sm leading-relaxed text-zinc-400">
+                <span>请选择诊断模式以开始</span>
                 <button
                     onClick={() => setShowModeSelector(true)}
-                    className="text-blue-600 hover:underline font-medium focus:outline-none"
+                    className="text-[#28a745] font-semibold hover:underline focus:outline-none pointer-events-auto"
+                    aria-label="选择诊断模式"
                 >
                     [选择模式]
                 </button>
@@ -101,10 +113,17 @@ export const InputArea: React.FC = () => {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={state.currentMode ? "在此输入您的回答..." : "请选择诊断模式以开始              "} // Padding for the button overlay
-            className="w-full min-h-[80px] max-h-[200px] p-4 pr-12 pb-14 bg-white border border-zinc-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent resize-none text-sm leading-relaxed"
-            disabled={!state.currentMode || state.isCompleted}
+            placeholder={state.currentMode ? "在此输入您的回答..." : ""} 
+            className="w-full min-h-[80px] max-h-[200px] p-4 pr-12 pb-14 bg-white border border-zinc-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent resize-none text-sm leading-relaxed disabled:bg-gray-50"
+            disabled={!state.currentMode || state.isCompleted || isLoading}
           />
+          
+          {/* Loading Overlay */}
+          {isLoading && (
+              <div className="absolute inset-0 bg-white/50 z-20 flex items-center justify-center rounded-xl">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-600"></div>
+              </div>
+          )}
           
           {/* Mode Selector Popup */}
           {showModeSelector && (
