@@ -40,14 +40,11 @@ export interface EngineState {
   historyError: string | null;
 }
 
-const checkInterceptor = (text: string): { blocked: boolean; warning?: string } => {
+const checkInterceptor = (text: string): 'valid' | 'invalid' => {
   if (/(不知道|忘了|不清楚|没想好|跳过)/.test(text)) {
-    return { 
-      blocked: true, 
-      warning: '⚠️ 核心逻辑缺失！请补充具体事实，哪怕是目前遇到的困难，也不能直接跳过。' 
-    };
+    return 'invalid';
   }
-  return { blocked: false };
+  return 'valid';
 };
 
 export const useDeepMinerEngine = () => {
@@ -229,18 +226,26 @@ export const useDeepMinerEngine = () => {
         setState(prev => ({ ...prev, hasStarted: true }));
       }
 
-      const check = checkInterceptor(userInput);
-      if (check.blocked) {
-        // Return object so caller (UI) can handle warning
-        return { blocked: true, warning: check.warning || '输入无效' };
-      }
+      // Check input quality to decide next phase
+      const inputStatus = checkInterceptor(userInput);
+      const isStay = inputStatus === 'invalid';
 
       appendMessage('user', userInput, state.currentPhase);
       setState(prev => ({ ...prev, isProcessing: true }));
 
       try {
         const mode = MODE_CONFIG[state.currentModeId];
-        const nextPhaseNum = state.currentPhase + 1;
+        
+        // If stay, next phase is current phase. If valid, move to next.
+        const nextPhaseNum = isStay ? state.currentPhase : state.currentPhase + 1;
+        
+        // For prompt construction:
+        // If stay, we need the CURRENT task (to guide user back).
+        // If next, we need the NEXT task (to move forward).
+        // However, if we stay, nextPhaseNum IS currentPhase.
+        // If we move, nextPhaseNum IS nextPhase.
+        // So we can consistently use nextPhaseNum to look up the target task.
+        
         const nextPhase = mode?.phases[nextPhaseNum] || mode?.phases[String(nextPhaseNum)];
 
         if (!nextPhase) {
@@ -252,7 +257,7 @@ export const useDeepMinerEngine = () => {
           return;
         }
 
-        const prompt = buildThinkingPartnerPrompt(userInput, nextPhase.task, state.messages);
+        const prompt = buildThinkingPartnerPrompt(userInput, nextPhase.task, state.messages, isStay);
         const reply = await callThinkingPartner(prompt, aiConfig);
 
         setTimeout(() => {

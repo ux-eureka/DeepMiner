@@ -44,29 +44,13 @@ export const InputArea: React.FC = () => {
   }, [warning]);
 
   const handleSend = async () => {
-    // Check interception BEFORE sending to engine
-    // Since interceptor logic is inside engine's sendMessage (processInput),
-    // and processInput returns { blocked: boolean; warning?: string } | void
-    // We rely on the return value.
-    // However, the interceptor logic itself is synchronous and simple.
-    // To provide instant feedback without async delay if possible, we could check here too,
-    // but better to keep single source of truth in the engine.
-    
-    // BUT: If the user inputs "忘记了", the engine's processInput will return blocked object.
-    // Let's ensure we handle that return value correctly.
-    
     if (text.trim() && state.currentMode) {
-      const result = await sendMessage(text);
-      if (result && result.blocked) {
-          setWarning(result.warning || "输入被拦截");
-          // Do NOT clear text if blocked, so user can edit it
-      } else {
-          setText('');
-          setWarning(null);
-          // Refocus textarea after sending
-          if (textareaRef.current) {
-              textareaRef.current.focus();
-          }
+      await sendMessage(text);
+      setText('');
+      setWarning(null);
+      // Refocus textarea after sending
+      if (textareaRef.current) {
+          textareaRef.current.focus();
       }
     }
   };

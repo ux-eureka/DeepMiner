@@ -22,7 +22,7 @@ export const mockThinkingPartnerReply = (userInput: string, nextTask: string) =>
   return `${feedback}\n\n${setup}\n\n现在先回答一个最关键的：${question}`;
 };
 
-export const buildThinkingPartnerPrompt = (userInput: string, nextTask: string, history: Message[]) => {
+export const buildThinkingPartnerPrompt = (userInput: string, nextTask: string, history: Message[], isStay: boolean = false) => {
   const historyMessages = history.map(m => {
     return {
       role: m.type === 'user' ? 'user' : 'assistant',
@@ -35,6 +35,8 @@ export const buildThinkingPartnerPrompt = (userInput: string, nextTask: string, 
   let userMessageContent = '';
   if (!userInput || userInput === '无') {
     userMessageContent = `（当前是对话开始，用户尚未回答）。下一步你的任务是：${nextTask}`;
+  } else if (isStay) {
+    userMessageContent = `当前用户回答：${userInput}。注意：用户的回答似乎遇到了困难或不够清晰，请不要进入下一阶段。请结合【核心任务：${nextTask}】，换个角度引导用户思考，帮助他完成当前任务。`;
   } else {
     userMessageContent = `当前用户回答：${userInput}。下一步你的任务是：${nextTask}`;
   }
