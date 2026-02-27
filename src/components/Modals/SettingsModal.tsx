@@ -20,6 +20,7 @@ import {
 import { useAIConfig } from '../../context/AIConfigContext';
 import { AIProvider, DEFAULT_CONFIGS } from '../../types/ai-config';
 import { cn } from '../../utils/cn';
+import { extractProviderFromUrl } from '../../utils/urlParser';
 
 export const SettingsModal: React.FC = () => {
   const { 
@@ -49,6 +50,27 @@ export const SettingsModal: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    
+    // Auto-detect provider from Base URL
+    if (name === 'baseUrl') {
+      const detectedProvider = extractProviderFromUrl(value);
+      if (detectedProvider) {
+        // Map detected provider to known providers or keep as custom/detected
+        // For known providers, we can map directly if they match
+        let mappedProvider: AIProvider | undefined;
+        
+        if (detectedProvider.includes('deepseek')) mappedProvider = 'deepseek';
+        else if (detectedProvider.includes('openai')) mappedProvider = 'openai';
+        else if (detectedProvider.includes('anthropic')) mappedProvider = 'anthropic';
+        else if (detectedProvider.includes('google')) mappedProvider = 'google';
+        
+        if (mappedProvider && mappedProvider !== config.provider) {
+           updateConfig({ [name]: value, provider: mappedProvider });
+           return;
+        }
+      }
+    }
+
     updateConfig({ [name]: value });
   };
   
@@ -174,7 +196,11 @@ export const SettingsModal: React.FC = () => {
                     name="provider"
                     value={config.provider}
                     onChange={handleProviderChange}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 text-slate-700"
+                    disabled={!!extractProviderFromUrl(config.baseUrl)}
+                    className={cn(
+                      "w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 text-slate-700",
+                      extractProviderFromUrl(config.baseUrl) && "bg-gray-50 text-gray-500 cursor-not-allowed"
+                    )}
                     >
                     <option value="openai">OpenAI</option>
                     <option value="anthropic">Anthropic</option>
@@ -186,6 +212,12 @@ export const SettingsModal: React.FC = () => {
                     <Activity className="w-4 h-4" />
                     </div>
                 </div>
+                {extractProviderFromUrl(config.baseUrl) && (
+                  <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    已根据 Base URL 自动识别提供商
+                  </p>
+                )}
                 </div>
 
                 {/* API Key */}
