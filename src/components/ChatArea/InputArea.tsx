@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, ChevronDown, Plus } from 'lucide-react';
+import { Send, ChevronDown, Plus, Eye, X, Copy, Check } from 'lucide-react';
 import { useChatFlow } from '../../hooks/useChatFlow';
 import { useModeLock } from '../../hooks/useModeLock';
 import { MODE_CONFIG } from '../../config/promptsConfig';
@@ -7,6 +7,81 @@ import { cn } from '../../utils/cn';
 import { ModelPresetSelector } from './ModelPresetSelector';
 import styles from './InputArea.module.css';
 import containerStyles from '../../styles/QuestionContainer.module.css';
+
+// Prompt Preview Modal Component
+const PromptPreviewModal = ({ content, onClose }: { content: string; onClose: () => void }) => {
+    const [copied, setCopied] = useState(false);
+    
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onClose]);
+
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(content);
+            setCopied(true);
+            setTimeout(() => {
+                onClose();
+            }, 1500);
+        } catch (err) {
+            console.error('Failed to copy:', err);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+            <div 
+                className="bg-white rounded-xl shadow-2xl w-[90vw] max-w-2xl max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+                    <h3 className="text-lg font-semibold text-zinc-900">提示词预览</h3>
+                    <div className="flex items-center gap-2">
+                         <button 
+                            onClick={handleCopy}
+                            className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200",
+                                copied 
+                                    ? "bg-emerald-50 text-emerald-600 border border-emerald-200" 
+                                    : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"
+                            )}
+                        >
+                            {copied ? (
+                                <>
+                                    <Check className="w-4 h-4" />
+                                    <span>已复制</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Copy className="w-4 h-4" />
+                                    <span>复制</span>
+                                </>
+                            )}
+                        </button>
+                        <button 
+                            onClick={onClose}
+                            className="p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+                
+                <div className="flex-1 overflow-hidden p-6 bg-zinc-50/50">
+                    <textarea 
+                        readOnly
+                        value={content}
+                        className="w-full h-full min-h-[300px] p-4 bg-white border border-zinc-200 rounded-lg text-sm font-mono text-zinc-600 leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-slate-200 selection:bg-slate-100"
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export const InputArea: React.FC = () => {
   const { sendMessage, initMode, state, dispatch } = useChatFlow();
@@ -44,13 +119,29 @@ export const InputArea: React.FC = () => {
   }, [warning]);
 
   const handleSend = async () => {
+    // Check interception BEFORE sending to engine
+    // Since interceptor logic is inside engine's sendMessage (processInput),
+    // and processInput returns { blocked: boolean; warning?: string } | void
+    // We rely on the return value.
+    // However, the interceptor logic itself is synchronous and simple.
+    // To provide instant feedback without async delay if possible, we could check here too,
+    // but better to keep single source of truth in the engine.
+    
+    // BUT: If the user inputs "忘记了", the engine's processInput will return blocked object.
+    // Let's ensure we handle that return value correctly.
+    
     if (text.trim() && state.currentMode) {
-      await sendMessage(text);
-      setText('');
-      setWarning(null);
-      // Refocus textarea after sending
-      if (textareaRef.current) {
-          textareaRef.current.focus();
+      const result = await sendMessage(text);
+      if (result && result.blocked) {
+          setWarning(result.warning || "输入被拦截");
+          // Do NOT clear text if blocked, so user can edit it
+      } else {
+          setText('');
+          setWarning(null);
+          // Refocus textarea after sending
+          if (textareaRef.current) {
+              textareaRef.current.focus();
+          }
       }
     }
   };
@@ -66,6 +157,9 @@ export const InputArea: React.FC = () => {
 
   const [showModeSelector, setShowModeSelector] = useState(false);
   const modeSelectorRef = useRef<HTMLDivElement>(null);
+  
+  // Prompt Preview State
+  const [previewPrompt, setPreviewPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     // Click outside to close mode selector
@@ -77,9 +171,26 @@ export const InputArea: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+  
+  // Format prompt for preview
+  const getPromptContent = (mode: typeof MODE_CONFIG[keyof typeof MODE_CONFIG]) => {
+      // Create a readable string format
+      const phasesText = Object.entries(mode.phases)
+          .map(([phaseId, phase]) => `[Phase ${phaseId}: ${phase.title}]\nTask: ${phase.task}`)
+          .join('\n\n');
+          
+      return `模式名称：${mode.name}\nID：${mode.id}\n\n=== 阶段流程 ===\n\n${phasesText}`;
+  };
 
   return (
     <div className={styles.root}>
+      {/* Preview Modal */}
+      {previewPrompt && (
+          <PromptPreviewModal 
+            content={previewPrompt} 
+            onClose={() => setPreviewPrompt(null)} 
+          />
+      )}
       <div className={containerStyles.container}>
         <div className={styles.inner}>
           {warning && (
@@ -138,20 +249,45 @@ export const InputArea: React.FC = () => {
           {showModeSelector && (
               <div 
                 ref={modeSelectorRef}
-                className="absolute top-12 left-4 w-64 bg-white border border-zinc-200 rounded-lg shadow-xl py-1 z-30 animate-in fade-in zoom-in duration-200"
+                className="absolute bottom-16 left-4 w-64 bg-white border border-zinc-200 rounded-lg shadow-xl py-1 z-30 animate-in fade-in zoom-in duration-200"
               >
                 {Object.values(MODE_CONFIG).map((mode) => (
-                  <button
+                  <div 
                     key={mode.id}
-                    className="w-full text-left px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors truncate flex items-center justify-between group"
-                    onClick={() => {
-                      initMode(mode.id);
-                      setShowModeSelector(false);
-                    }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors flex items-center justify-between group"
                   >
-                    <span>{mode.name}</span>
-                    <span className="opacity-0 group-hover:opacity-100 text-blue-500 text-xs">选择</span>
-                  </button>
+                    <button
+                        className="flex-1 text-left truncate mr-2"
+                        onClick={() => {
+                            initMode(mode.id);
+                            setShowModeSelector(false);
+                        }}
+                    >
+                        {mode.name}
+                    </button>
+                    
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewPrompt(getPromptContent(mode));
+                            }}
+                            className="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="预览提示词"
+                        >
+                            <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => {
+                                initMode(mode.id);
+                                setShowModeSelector(false);
+                            }}
+                            className="text-blue-500 text-xs font-medium hover:underline px-1"
+                        >
+                            选择
+                        </button>
+                    </div>
+                  </div>
                 ))}
                 <div className="h-px bg-zinc-100 my-1" />
                 <button

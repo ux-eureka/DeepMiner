@@ -14,7 +14,12 @@ export const ReportModal: React.FC = () => {
 
   if (!state.isReportModalOpen) return null;
 
-  const mode = state.currentMode ? MODE_CONFIG[state.currentMode] : null;
+  // Use phases from state instead of static config to support dynamic phases
+  // If state.phases is empty (e.g. from a legacy session), try to fallback or rebuild it?
+  // But legacy sessions might not have phases in state.
+  // We need to handle the case where phase is undefined gracefully.
+  const phases = state.phases || (state.currentMode ? MODE_CONFIG[state.currentMode]?.phases : {});
+  const modeName = state.currentMode ? MODE_CONFIG[state.currentMode]?.name : 'Custom Mode';
 
   // Auto-generate report when modal opens
   useEffect(() => {
@@ -86,7 +91,7 @@ export const ReportModal: React.FC = () => {
 
       // Title
       doc.setFontSize(20);
-      doc.text(mode?.name || 'Analysis Report', margin, y);
+      doc.text(modeName || 'Analysis Report', margin, y);
       y += 15;
 
       // Date
@@ -101,7 +106,7 @@ export const ReportModal: React.FC = () => {
 
       state.messages.filter(m => m.type === 'user').forEach((msg) => {
           const phaseId = msg.phase || 'Unknown';
-          const phase = mode?.phases[String(phaseId)];
+          const phase = phases[String(phaseId)];
           
           // Check page break
           if (y > pageHeight - 40) {
@@ -112,7 +117,7 @@ export const ReportModal: React.FC = () => {
           // Phase Title
           doc.setFont(undefined, 'bold');
           doc.setTextColor(50);
-          doc.text(`Phase ${phaseId}: ${phase?.title || 'General'}`, margin, y);
+          doc.text(`Phase ${phaseId}: ${phase?.title || '未命名阶段'}`, margin, y);
           y += 8;
 
           // User Answer
@@ -195,7 +200,7 @@ export const ReportModal: React.FC = () => {
             {!error && (
                 <div className={`bg-white border border-zinc-200 rounded-lg shadow-sm p-8 max-w-4xl mx-auto transition-opacity duration-500 ${isGenerating ? 'opacity-50 blur-[1px]' : 'opacity-100'}`}>
                     <div className="mb-8 border-b border-zinc-100 pb-6">
-                        <h1 className="text-3xl font-bold text-zinc-900 mb-2">{mode?.name || 'Analysis Report'}</h1>
+                        <h1 className="text-3xl font-bold text-zinc-900 mb-2">{modeName || 'Analysis Report'}</h1>
                         <p className="text-zinc-500 text-sm">Generated on {new Date().toLocaleDateString()}</p>
                     </div>
 
@@ -203,11 +208,11 @@ export const ReportModal: React.FC = () => {
                         {/* Render Chat History as Report */}
                         {state.messages.filter(m => m.type === 'user').map((msg) => {
                             const phaseId = msg.phase || 'Unknown';
-                            const phase = mode?.phases[String(phaseId)];
+                            const phase = phases[String(phaseId)];
                             return (
                                 <div key={msg.id} className="border-l-4 border-slate-200 pl-4 py-1">
                                     <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-2">
-                                        Phase {phaseId}: {phase?.title}
+                                        Phase {phaseId}: {phase?.title || '未命名阶段'}
                                     </h4>
                                     <div className="text-zinc-800 text-base leading-relaxed whitespace-pre-wrap">
                                         {msg.content}

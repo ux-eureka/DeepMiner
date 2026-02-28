@@ -36,6 +36,7 @@ export interface ChatState {
   history?: ChatHistoryItem[]; // Added history
   isLoadingHistory?: boolean;
   historyError?: string | null;
+  phases?: Record<string, { title: string; task: string }>;
 }
 
 export interface PhaseProgress {
@@ -54,4 +55,5 @@ export interface ChatContextType {
   loadSession: (sessionId: string) => void; // Added loadSession
   addCustomMode: (mode: { id: string; name: string; phases: Record<string, { title: string; task: string }> }) => void;
   deleteSession: (sessionId: string) => void;
+  appendPhase: (title: string, task: string) => void;
 }

@@ -5,7 +5,7 @@ import { ChatState, ChatContextType } from '../types';
 export const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
-  const { state: engineState, initMode, sendMessage, resetEngine, loadSession, addCustomMode, deleteSession } = useDeepMinerEngine();
+  const { state: engineState, initMode, sendMessage, resetEngine, loadSession, addCustomMode, deleteSession, appendPhase } = useDeepMinerEngine();
   
   // Modal states (managed locally here as they are UI specific, not Engine specific)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -31,6 +31,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     history: engineState.history, // Pass history to context
     isLoadingHistory: engineState.isLoadingHistory,
     historyError: engineState.historyError,
+    phases: engineState.phases,
   };
 
   // Mock Dispatch for compatibility with existing reducers if needed
@@ -64,7 +65,8 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       resetChat: resetEngine,
       loadSession,
       addCustomMode,
-      deleteSession
+      deleteSession,
+      appendPhase
     }}>
       {children}
     </ChatContext.Provider>

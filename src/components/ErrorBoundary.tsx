@@ -17,11 +17,13 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return { hasError: true, message };
   }
 
-  componentDidCatch(error: unknown) {
+  componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
     if (error instanceof Error) {
-      console.error(error);
+      console.error('ErrorBoundary caught an error:', error);
+      console.error('Component Stack:', errorInfo.componentStack);
     } else {
-      console.error('Unknown error', error);
+      console.error('ErrorBoundary caught an unknown error:', error);
+      console.error('Component Stack:', errorInfo.componentStack);
     }
   }
 

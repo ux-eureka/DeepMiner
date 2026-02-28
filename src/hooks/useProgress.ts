@@ -7,10 +7,12 @@ export const useProgress = (): PhaseProgress[] => {
   const { state } = useContext(ChatContext);
   if (!state.currentMode) return [];
   
-  const mode = MODE_CONFIG[state.currentMode];
-  if (!mode) return [];
+  // Use dynamic phases from state if available, otherwise fallback to static config
+  const phases = state.phases || MODE_CONFIG[state.currentMode]?.phases;
+  
+  if (!phases) return [];
 
-  const phaseKeys = Object.keys(mode.phases).sort((a, b) => parseInt(a) - parseInt(b));
+  const phaseKeys = Object.keys(phases).sort((a, b) => parseInt(a) - parseInt(b));
   
   return phaseKeys.map(phaseKey => {
       const currentPhaseInt = parseInt(state.currentPhase);
@@ -21,7 +23,7 @@ export const useProgress = (): PhaseProgress[] => {
       
       return {
         phase: phaseKey,
-        title: mode.phases[phaseKey].title,
+        title: phases[phaseKey].title,
         isCompleted,
         isActive
       };

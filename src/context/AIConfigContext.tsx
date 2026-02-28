@@ -40,11 +40,21 @@ const decrypt = (text: string) => {
     }
 };
 
+// Access Environment Variables (injected by Vite)
+const ENV_API_KEY = process.env.NEXT_PUBLIC_API_KEY || '';
+const ENV_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
+
 const DEFAULT_PRESET: AIPreset = {
     id: 'default',
-    name: 'Default (OpenAI)',
+    name: (ENV_API_KEY && ENV_BASE_URL) ? 'System Environment' : 'Default (OpenAI)',
     isDefault: true,
-    ...DEFAULT_CONFIGS.openai
+    // Use 'custom' if Env vars are present to avoid OpenAI defaults overriding
+    provider: (ENV_API_KEY && ENV_BASE_URL) ? 'custom' : 'openai',
+    apiKey: ENV_API_KEY,
+    baseUrl: ENV_BASE_URL || DEFAULT_CONFIGS.openai.baseUrl,
+    model: 'deepseek-chat', // Default safe model
+    temperature: 0.7,
+    maxTokens: 2000
 };
 
 export const AIConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -71,6 +81,31 @@ export const AIConfigProvider: React.FC<{ children: ReactNode }> = ({ children }
             ...p,
             apiKey: p.apiKey ? decrypt(p.apiKey) : ''
         }));
+        
+        // Force update the 'default' preset if Environment Variables exist
+        // This ensures system environment settings always take precedence for the default profile
+        if (ENV_API_KEY && ENV_BASE_URL) {
+            const defaultIndex = decryptedPresets.findIndex(p => p.id === 'default');
+            
+            // Define the Environment Preset
+            const envPreset = {
+                ...DEFAULT_PRESET,
+                // If the existing default preset has a model set, preserve it? 
+                // Or force the safe default 'deepseek-chat'?
+                // Let's force 'deepseek-chat' to ensure compatibility with the Env URL we are injecting.
+                model: 'deepseek-chat'
+            };
+            
+            if (defaultIndex >= 0) {
+                decryptedPresets[defaultIndex] = {
+                    ...decryptedPresets[defaultIndex],
+                    ...envPreset
+                };
+            } else {
+                decryptedPresets.unshift(envPreset);
+            }
+        }
+        
         setPresets(decryptedPresets);
         
         if (savedCurrentId && decryptedPresets.some(p => p.id === savedCurrentId)) {
@@ -93,11 +128,15 @@ export const AIConfigProvider: React.FC<{ children: ReactNode }> = ({ children }
                 ...DEFAULT_CONFIGS[parsed.provider as AIProvider],
                 ...parsed
             };
-            setPresets([migratedPreset]);
+            setPresets([migratedPreset, DEFAULT_PRESET]);
             setCurrentPresetId('migrated-legacy');
         } catch (e) {
             console.error('Failed to migrate legacy config:', e);
         }
+    } else if (ENV_API_KEY && ENV_BASE_URL) {
+        // First time load with Env Vars
+        setPresets([DEFAULT_PRESET]);
+        setCurrentPresetId('default');
     }
   }, []);
 
