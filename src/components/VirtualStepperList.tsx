@@ -71,30 +71,15 @@ export const VirtualStepperList: React.FC<VirtualStepperListProps> = ({
         <div
           key={p.phase}
           className={cn(
-            "flex items-center cursor-pointer group transition-all duration-200 rounded-md shrink-0", // shrink-0 important
-            isHovered ? "gap-3 px-2 py-1 hover:bg-zinc-100/70" : "justify-center h-12" // h-12 matches ITEM_HEIGHT (3rem = 48px)
+            "flex items-center cursor-pointer group transition-all duration-200 rounded-md shrink-0 justify-end",
+            isHovered ? "gap-1 px-2 py-1 hover:bg-zinc-100/70" : "justify-center h-12"
           )}
           onClick={() => onPhaseClick(p.phase)}
         >
           <div
             className={cn(
-              "w-3 h-3 rounded-full border-2 transition-all shrink-0 relative",
-              p.isActive
-                ? "border-emerald-500 bg-emerald-500 scale-125"
-                : p.isCompleted
-                  ? "border-emerald-300 bg-emerald-300"
-                  : "border-zinc-300 bg-white"
-            )}
-          >
-            {p.isCompleted && !p.isActive && isHovered && (
-              <CheckCircle2 className="w-2 h-2 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-            )}
-          </div>
-
-          <div
-            className={cn(
-              "flex flex-col transition-opacity duration-200 whitespace-nowrap overflow-hidden",
-              isHovered ? "opacity-100 w-auto" : "opacity-0 w-0"
+              "flex flex-col transition-all duration-300 whitespace-nowrap overflow-hidden items-end",
+              isHovered ? "opacity-100 max-w-[200px] mr-3" : "opacity-0 max-w-0 mr-0"
             )}
           >
             <span
@@ -111,7 +96,7 @@ export const VirtualStepperList: React.FC<VirtualStepperListProps> = ({
             </span>
             <span
               className={cn(
-                "text-xs font-medium truncate max-w-[160px]",
+                "text-xs font-medium truncate max-w-[160px] text-right",
                 p.isActive
                   ? "text-zinc-900"
                   : p.isCompleted
@@ -121,6 +106,21 @@ export const VirtualStepperList: React.FC<VirtualStepperListProps> = ({
             >
               {p.title}
             </span>
+          </div>
+
+          <div
+            className={cn(
+              "w-2.5 h-2.5 rounded-full border-2 transition-all shrink-0 relative",
+              p.isActive
+                ? "border-emerald-500 bg-emerald-500 scale-125"
+                : p.isCompleted
+                  ? "border-emerald-300 bg-emerald-300"
+                  : "border-zinc-300 bg-white"
+            )}
+          >
+            {p.isCompleted && !p.isActive && isHovered && (
+              <CheckCircle2 className="w-1.5 h-1.5 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+            )}
           </div>
         </div>
       ))}
