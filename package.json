@@ -16,8 +16,11 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@emotion/is-prop-valid": "^1.4.0",
+    "@types/crypto-js": "^4.2.2",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
+    "crypto-js": "^4.2.0",
     "framer-motion": "^12.34.3",
     "jspdf": "^4.2.0",
     "lucide-react": "^0.511.0",

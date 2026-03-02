@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+storybook-static
+package-lock.json
+coverage
 
 # Editor directories and files
 .vscode/*

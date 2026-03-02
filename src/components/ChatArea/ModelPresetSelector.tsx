@@ -87,9 +87,6 @@ export const ModelPresetSelector: React.FC = () => {
                                 )}>
                                     {preset.name}
                                 </span>
-                                <span className="text-[10px] text-gray-400 uppercase">
-                                    {preset.provider}
-                                </span>
                             </div>
                             {currentPresetId === preset.id && (
                                 <Check className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-2" />

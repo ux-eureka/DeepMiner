@@ -19,7 +19,7 @@ export const generateThinkingResponse = async (
 ): Promise<string> => {
   // 1. Determine Configuration with Smart Priority
   // We prioritize valid config from UI over Environment Variables.
-  // But if UI config is empty/default (no apiKey), we fall back to Env.
+  // But if UI config is empty/default (no apiKey) OR if UI key matches the System Env Key, we fall back to Env (or treat as System).
   
   const envApiKey = process.env.NEXT_PUBLIC_API_KEY;
   const envBaseUrl = process.env.NEXT_PUBLIC_BASE_URL;
@@ -37,14 +37,10 @@ export const generateThinkingResponse = async (
       rawBaseUrl = config.baseUrl;
       model = config.model || 'deepseek-chat';
       
-      // Safety check: if user configured a key but left URL empty, 
-      // check if it's the default provider (OpenAI) or Custom.
-      // If Custom and empty URL, it's invalid.
-      // If OpenAI and empty URL, it defaults to openai.com (handled by UI defaults usually).
-      // But if UI sends us empty string, we should fall back to Env URL? No, that mixes configs.
-      // Better to throw error if UI config is partial.
+      // If the key in UI matches the Env Key (which happens if we auto-filled it in context), use it.
+      // But if the key in UI is EMPTY (which happens if we cleared it on save to avoid leak), we must fallback to env.
   } else {
-      // Case B: No UI config or default empty config -> Use Environment Variables
+      // Case B: No UI config key -> Use Environment Variables
       apiKey = envApiKey;
       rawBaseUrl = envBaseUrl;
       // Default model for env config is deepseek-chat unless URL param overrides it later
@@ -61,12 +57,14 @@ export const generateThinkingResponse = async (
     throw new Error('未配置 API Key 或 Base URL。请在系统设置中配置，或检查环境变量。');
   }
 
-  // 3. Parse Base URL and Model from "target" parameter if present
-  // Example: https://cloud.siliconflow.cn/models?target=deepseek-ai/DeepSeek-V3.2
-  let baseUrl = rawBaseUrl;
+  let baseUrl = rawBaseUrl.trim();
+  if (!/^https?:\/\//i.test(baseUrl)) {
+    baseUrl = `https://${baseUrl}`;
+  }
+
   try {
-    if (rawBaseUrl.includes('?')) {
-      const urlObj = new URL(rawBaseUrl);
+    const urlObj = new URL(baseUrl);
+    if (urlObj.search) {
       const targetParam = urlObj.searchParams.get('target');
       if (targetParam) {
         model = targetParam; // Override model with target param
@@ -95,6 +93,17 @@ export const generateThinkingResponse = async (
       endpoint = baseUrl;
   } else {
       endpoint = `${baseUrl}/chat/completions`;
+  }
+
+  const requestHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  let requestEndpoint = endpoint;
+  if (process.env.NODE_ENV !== 'production') {
+    requestEndpoint = '/__dm_llm_proxy';
+    requestHeaders['x-dm-endpoint'] = endpoint;
   }
   
   const systemMessage = {
@@ -126,12 +135,9 @@ export const generateThinkingResponse = async (
   const messages = [systemMessage, ...historyMessages, finalUserMessage];
 
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetch(requestEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: requestHeaders,
       body: JSON.stringify({
         model: model,
         messages: messages,
@@ -143,7 +149,29 @@ export const generateThinkingResponse = async (
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`API Error: ${response.status} - ${errorText}`);
+      let errorMsg = `API Error: ${response.status}`;
+      
+      try {
+        const errorJson = JSON.parse(errorText);
+        const msg = errorJson.message || errorJson.error;
+        if (msg) {
+            errorMsg += ` - ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`;
+            
+            // Friendly error messages for common issues
+            if (response.status === 403 && (String(msg).includes('balance') || errorJson.code === 30001)) {
+                throw new Error('API 账户余额不足 (Error 403)。请检查您的 API 服务商账户余额，或在设置中更换有效的 API Key。');
+            }
+            if (response.status === 401) {
+                throw new Error('API Key 无效或认证失败 (Error 401)。请在系统设置中检查您的 API Key 是否正确。');
+            }
+        } else {
+            errorMsg += ` - ${errorText}`;
+        }
+      } catch (e) {
+        errorMsg += ` - ${errorText}`;
+      }
+      
+      throw new Error(errorMsg);
     }
 
     const data = await response.json();
@@ -155,6 +183,9 @@ export const generateThinkingResponse = async (
 
     return reply;
   } catch (error) {
+    if (error instanceof TypeError && String(error.message).includes('Failed to fetch')) {
+      throw new Error('网络请求失败 (Failed to fetch)。请检查 Base URL 是否包含 https://，并确认目标服务支持浏览器直连；本地开发环境已自动通过同源代理转发。');
+    }
     console.error('LLM Service Error:', error);
     throw error;
   }

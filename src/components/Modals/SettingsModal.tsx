@@ -10,17 +10,14 @@ import {
   RotateCcw, 
   CheckCircle2, 
   AlertCircle,
-  Eye,
-  EyeOff,
   Activity,
   Plus,
   Trash2,
   MoreVertical
 } from 'lucide-react';
 import { useAIConfig } from '../../context/AIConfigContext';
-import { AIProvider, DEFAULT_CONFIGS } from '../../types/ai-config';
+import { DEFAULT_CONFIG } from '../../types/ai-config';
 import { cn } from '../../utils/cn';
-import { extractProviderFromUrl } from '../../utils/urlParser';
 
 export const SettingsModal: React.FC = () => {
   const { 
@@ -40,35 +37,50 @@ export const SettingsModal: React.FC = () => {
     testResult 
   } = useAIConfig();
 
-  const [showApiKey, setShowApiKey] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [isEditingApiKey, setIsEditingApiKey] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
+
+  // Reset local input when preset changes
+  React.useEffect(() => {
+    setApiKeyInput('');
+    setIsEditingApiKey(false);
+    setUrlError(null);
+  }, [currentPresetId]);
 
   if (!isOpen) return null;
 
-  const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    updateConfig({ provider: e.target.value as AIProvider });
+  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setApiKeyInput(newValue);
+    updateConfig({ apiKey: newValue.trim() });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
-    // Auto-detect provider from Base URL
     if (name === 'baseUrl') {
-      const detectedProvider = extractProviderFromUrl(value);
-      if (detectedProvider) {
-        // Map detected provider to known providers or keep as custom/detected
-        // For known providers, we can map directly if they match
-        let mappedProvider: AIProvider | undefined;
-        
-        if (detectedProvider.includes('deepseek')) mappedProvider = 'deepseek';
-        else if (detectedProvider.includes('openai')) mappedProvider = 'openai';
-        else if (detectedProvider.includes('anthropic')) mappedProvider = 'anthropic';
-        else if (detectedProvider.includes('google')) mappedProvider = 'google';
-        
-        if (mappedProvider && mappedProvider !== config.provider) {
-           updateConfig({ [name]: value, provider: mappedProvider });
-           return;
-        }
+      if (!value.trim()) {
+        setUrlError(null);
+        updateConfig({ [name]: value });
+        return;
       }
+
+      let isValidUrl = false;
+      try {
+        const url = new URL(value.startsWith('http') ? value : `https://${value}`);
+        isValidUrl = !!url.hostname;
+      } catch {
+        isValidUrl = false;
+      }
+
+      if (!isValidUrl) {
+        setUrlError("请输入有效的 URL (例如: https://api.openai.com/v1)");
+        updateConfig({ [name]: value });
+        return;
+      }
+
+      setUrlError(null);
     }
 
     updateConfig({ [name]: value });
@@ -81,7 +93,7 @@ export const SettingsModal: React.FC = () => {
   const handleAddPreset = () => {
       addPreset({
           name: 'New Preset',
-          ...DEFAULT_CONFIGS.openai
+          ...DEFAULT_CONFIG
       });
   };
 
@@ -138,9 +150,6 @@ export const SettingsModal: React.FC = () => {
                               )}>
                                   {preset.name}
                               </span>
-                              <span className="text-xs text-gray-400 truncate uppercase">
-                                  {preset.provider}
-                              </span>
                           </div>
                           {presets.length > 1 && (
                               <button
@@ -188,38 +197,6 @@ export const SettingsModal: React.FC = () => {
                     />
                 </div>
 
-                {/* Provider Selection */}
-                <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">AI 服务提供商</label>
-                <div className="relative">
-                    <select
-                    name="provider"
-                    value={config.provider}
-                    onChange={handleProviderChange}
-                    disabled={!!extractProviderFromUrl(config.baseUrl)}
-                    className={cn(
-                      "w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 text-slate-700",
-                      extractProviderFromUrl(config.baseUrl) && "bg-gray-50 text-gray-500 cursor-not-allowed"
-                    )}
-                    >
-                    <option value="openai">OpenAI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="google">Google Gemini</option>
-                    <option value="deepseek">DeepSeek</option>
-                    <option value="custom">Custom (OpenAI Compatible)</option>
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                    <Activity className="w-4 h-4" />
-                    </div>
-                </div>
-                {extractProviderFromUrl(config.baseUrl) && (
-                  <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
-                    <CheckCircle2 className="w-3 h-3" />
-                    已根据 Base URL 自动识别提供商
-                  </p>
-                )}
-                </div>
-
                 {/* API Key */}
                 <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700">API Key</label>
@@ -227,25 +204,40 @@ export const SettingsModal: React.FC = () => {
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                     <Key className="w-4 h-4" />
                     </div>
-                    <input
-                    type={showApiKey ? "text" : "password"}
-                    name="apiKey"
-                    value={config.apiKey}
-                    onChange={handleInputChange}
-                    placeholder={`Enter your ${config.provider} API Key`}
-                    className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 text-slate-700 placeholder:text-gray-300 font-mono text-sm"
-                    />
-                    <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
-                    >
-                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                    {config.apiKey && !isEditingApiKey ? (
+                        <div className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-slate-500 font-mono text-sm flex items-center justify-between">
+                            <span>
+                                {config.apiKey.length > 8 
+                                    ? `${config.apiKey.slice(0, 4)}****${config.apiKey.slice(-4)}` 
+                                    : '********'}
+                            </span>
+                            <button 
+                                onClick={() => {
+                                  setApiKeyInput('');
+                                  setIsEditingApiKey(true);
+                                }}
+                                className="text-xs text-blue-600 hover:text-blue-700 font-sans"
+                            >
+                                更换
+                            </button>
+                        </div>
+                    ) : (
+                        <input
+                            type="password"
+                            name="apiKey"
+                            value={apiKeyInput}
+                            onChange={handleApiKeyChange}
+                            autoComplete="new-password"
+                            spellCheck="false"
+                            placeholder="Enter your API Key"
+                            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 text-slate-700 placeholder:text-gray-400 font-mono text-sm"
+                            autoFocus
+                        />
+                    )}
                 </div>
                 <p className="text-xs text-gray-400 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3 text-green-500" />
-                    密钥将仅在本地加密存储，不会上传至服务器。
+                    密钥采用 AES-256 加密存储，仅在本地使用。
                 </p>
                 </div>
 
@@ -263,9 +255,15 @@ export const SettingsModal: React.FC = () => {
                         value={config.baseUrl}
                         onChange={handleInputChange}
                         placeholder="https://api.openai.com/v1"
-                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 text-slate-700 text-sm"
+                        className={cn(
+                            "w-full pl-10 pr-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 text-slate-700 text-sm",
+                            urlError ? "border-red-300 focus:border-red-400 focus:ring-red-100" : "border-gray-200"
+                        )}
                     />
                     </div>
+                    {urlError && (
+                        <p className="text-xs text-red-500 mt-1">{urlError}</p>
+                    )}
                 </div>
 
                 <div className="space-y-2">
@@ -361,4 +359,3 @@ export const SettingsModal: React.FC = () => {
     </AnimatePresence>
   );
 };
-

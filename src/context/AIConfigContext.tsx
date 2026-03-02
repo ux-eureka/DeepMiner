@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AIConfig, AIPreset, AIProvider, DEFAULT_CONFIGS } from '../types/ai-config';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import { AIConfig, AIPreset, DEFAULT_CONFIG } from '../types/ai-config';
+import CryptoJS from 'crypto-js';
+
+// --- Types & Interfaces ---
 
 interface AIConfigContextType {
   config: AIPreset;
@@ -24,19 +27,54 @@ interface AIConfigContextType {
   testResult: { success: boolean; message: string } | null;
 }
 
-const AIConfigContext = createContext<AIConfigContextType | undefined>(undefined);
+// --- Constants & Security ---
 
 const STORAGE_KEY = 'deepminer_ai_config'; // Legacy key
 const PRESETS_STORAGE_KEY = 'deepminer_ai_presets';
 const CURRENT_PRESET_KEY = 'deepminer_current_preset_id';
+const AUDIT_LOG_KEY = 'deepminer_audit_log';
 
-// Simple encryption/decryption for local storage (Base64)
-const encrypt = (text: string) => btoa(text);
-const decrypt = (text: string) => {
+// Use a fixed key for local encryption (In a real app, this should be user-derived or managed by a backend)
+// Since this is a client-side app, we use a hardcoded salt to obfuscate, but it's not truly secure against local admin access.
+const ENCRYPTION_SECRET = 'deepminer-local-secure-salt-v1';
+
+const encrypt = (text: string): string => {
+  if (!text) return '';
+  return CryptoJS.AES.encrypt(text, ENCRYPTION_SECRET).toString();
+};
+
+const decrypt = (ciphertext: string): string => {
+  if (!ciphertext) return '';
+  try {
+    const bytes = CryptoJS.AES.decrypt(ciphertext, ENCRYPTION_SECRET);
+    const originalText = bytes.toString(CryptoJS.enc.Utf8);
+    // Fallback for legacy base64 if AES fails (migration path)
+    if (!originalText && ciphertext.length > 0) {
+       try { return atob(ciphertext); } catch { return ciphertext; }
+    }
+    return originalText;
+  } catch (e) {
+    // Try legacy base64
+    try { return atob(ciphertext); } catch { return ciphertext; }
+  }
+};
+
+const logAudit = (action: string, details: string) => {
+    const logEntry = {
+        timestamp: new Date().toISOString(),
+        action,
+        details,
+        userId: 'local-user' // Single user app
+    };
+    
     try {
-        return atob(text);
-    } catch {
-        return text;
+        const logs = JSON.parse(localStorage.getItem(AUDIT_LOG_KEY) || '[]');
+        logs.push(logEntry);
+        // Keep last 100 logs
+        if (logs.length > 100) logs.shift();
+        localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(logs));
+    } catch (e) {
+        console.error('Audit log failed', e);
     }
 };
 
@@ -44,18 +82,23 @@ const decrypt = (text: string) => {
 const ENV_API_KEY = process.env.NEXT_PUBLIC_API_KEY || '';
 const ENV_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || '';
 
+// Known leaked key to be scrubbed
+const LEAKED_KEY = 'sk-kooqclttpgqfvetifmnzxkvedqamviujdjpxajkcmbwriaze';
+
 const DEFAULT_PRESET: AIPreset = {
     id: 'default',
-    name: (ENV_API_KEY && ENV_BASE_URL) ? 'System Environment' : 'Default (OpenAI)',
+    name: (ENV_API_KEY && ENV_BASE_URL) ? 'System Environment' : 'Default',
     isDefault: true,
-    // Use 'custom' if Env vars are present to avoid OpenAI defaults overriding
-    provider: (ENV_API_KEY && ENV_BASE_URL) ? 'custom' : 'openai',
     apiKey: ENV_API_KEY,
-    baseUrl: ENV_BASE_URL || DEFAULT_CONFIGS.openai.baseUrl,
-    model: 'deepseek-chat', // Default safe model
-    temperature: 0.7,
-    maxTokens: 2000
+    baseUrl: ENV_BASE_URL || DEFAULT_CONFIG.baseUrl,
+    model: DEFAULT_CONFIG.model,
+    temperature: DEFAULT_CONFIG.temperature,
+    maxTokens: DEFAULT_CONFIG.maxTokens
 };
+
+// --- Context ---
+
+const AIConfigContext = createContext<AIConfigContextType | undefined>(undefined);
 
 export const AIConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [presets, setPresets] = useState<AIPreset[]>([DEFAULT_PRESET]);
@@ -63,11 +106,14 @@ export const AIConfigProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [isOpen, setIsOpen] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  
+  // Ref to track if initial load is done to avoid overwriting storage with default state
+  const isLoaded = useRef(false);
 
   // Derived current config
   const currentConfig = presets.find(p => p.id === currentPresetId) || presets[0] || DEFAULT_PRESET;
 
-  // Load config from local storage on mount
+  // 1. Load config from local storage on mount (DOMContentLoaded equivalent)
   useEffect(() => {
     const savedPresets = localStorage.getItem(PRESETS_STORAGE_KEY);
     const savedCurrentId = localStorage.getItem(CURRENT_PRESET_KEY);
@@ -76,31 +122,22 @@ export const AIConfigProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (savedPresets) {
       try {
         const parsedPresets: AIPreset[] = JSON.parse(savedPresets);
-        // Decrypt API keys
-        const decryptedPresets = parsedPresets.map(p => ({
-            ...p,
-            apiKey: p.apiKey ? decrypt(p.apiKey) : ''
-        }));
+        // Decrypt API keys and scrub leaked keys
+        const decryptedPresets = parsedPresets.map(p => {
+            const rawKey = p.apiKey ? decrypt(p.apiKey) : '';
+            return {
+                ...p,
+                apiKey: rawKey === LEAKED_KEY ? '' : rawKey
+            };
+        });
         
-        // Force update the 'default' preset if Environment Variables exist
-        // This ensures system environment settings always take precedence for the default profile
+        // Merge Environment Config
         if (ENV_API_KEY && ENV_BASE_URL) {
             const defaultIndex = decryptedPresets.findIndex(p => p.id === 'default');
-            
-            // Define the Environment Preset
-            const envPreset = {
-                ...DEFAULT_PRESET,
-                // If the existing default preset has a model set, preserve it? 
-                // Or force the safe default 'deepseek-chat'?
-                // Let's force 'deepseek-chat' to ensure compatibility with the Env URL we are injecting.
-                model: 'deepseek-chat'
-            };
+            const envPreset = { ...DEFAULT_PRESET };
             
             if (defaultIndex >= 0) {
-                decryptedPresets[defaultIndex] = {
-                    ...decryptedPresets[defaultIndex],
-                    ...envPreset
-                };
+                decryptedPresets[defaultIndex] = { ...decryptedPresets[defaultIndex], ...envPreset };
             } else {
                 decryptedPresets.unshift(envPreset);
             }
@@ -117,39 +154,60 @@ export const AIConfigProvider: React.FC<{ children: ReactNode }> = ({ children }
         console.error('Failed to load AI presets:', e);
       }
     } else if (legacyConfig) {
-        // Migrate legacy config
+        // Migration logic
         try {
             const parsed = JSON.parse(legacyConfig);
             if (parsed.apiKey) parsed.apiKey = decrypt(parsed.apiKey);
-            
+            if (parsed.apiKey === LEAKED_KEY) parsed.apiKey = '';
+
             const migratedPreset: AIPreset = {
                 id: 'migrated-legacy',
                 name: 'Migrated Config',
-                ...DEFAULT_CONFIGS[parsed.provider as AIProvider],
-                ...parsed
+                ...DEFAULT_CONFIG,
+                ...(() => {
+                    const { provider: _provider, ...rest } = parsed;
+                    return rest;
+                })()
             };
             setPresets([migratedPreset, DEFAULT_PRESET]);
             setCurrentPresetId('migrated-legacy');
+            logAudit('MIGRATE', 'Migrated legacy configuration');
         } catch (e) {
             console.error('Failed to migrate legacy config:', e);
         }
     } else if (ENV_API_KEY && ENV_BASE_URL) {
-        // First time load with Env Vars
         setPresets([DEFAULT_PRESET]);
         setCurrentPresetId('default');
     }
+    
+    isLoaded.current = true;
   }, []);
 
-  // Persistence
+  // 2. Persistence with Idempotency Check
+  // We use a ref to store the last saved state string to avoid dirty writes
+  const lastSavedState = useRef<string>('');
+
   useEffect(() => {
+      if (!isLoaded.current) return;
+
       const presetsToSave = presets.map(p => ({
           ...p,
-          apiKey: p.apiKey ? encrypt(p.apiKey) : ''
+          // Encrypt API Key (skip if matching env var to avoid redundancy)
+          apiKey: (ENV_API_KEY && p.apiKey === ENV_API_KEY) ? '' : (p.apiKey ? encrypt(p.apiKey) : '')
       }));
-      localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presetsToSave));
+      
+      const serialized = JSON.stringify(presetsToSave);
+      
+      // Idempotency: Only write if changed
+      if (serialized !== lastSavedState.current) {
+          localStorage.setItem(PRESETS_STORAGE_KEY, serialized);
+          lastSavedState.current = serialized;
+          logAudit('SAVE', `Saved ${presets.length} presets`);
+      }
   }, [presets]);
 
   useEffect(() => {
+      if (!isLoaded.current) return;
       localStorage.setItem(CURRENT_PRESET_KEY, currentPresetId);
   }, [currentPresetId]);
 
@@ -164,10 +222,16 @@ export const AIConfigProvider: React.FC<{ children: ReactNode }> = ({ children }
           id: Date.now().toString()
       };
       setPresets(prev => [...prev, newPreset]);
-      setCurrentPresetId(newPreset.id); // Auto-select new preset
+      setCurrentPresetId(newPreset.id);
+      logAudit('CREATE', `Created preset ${newPreset.id}`);
   };
 
   const updatePreset = (id: string, updates: Partial<AIPreset>) => {
+      // Check for sensitive changes for audit
+      if (updates.apiKey) {
+          logAudit('UPDATE_KEY', `Updated API key for preset ${id}`);
+      }
+      
       setPresets(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
   };
 
@@ -178,12 +242,12 @@ export const AIConfigProvider: React.FC<{ children: ReactNode }> = ({ children }
       }
       setPresets(prev => {
           const newPresets = prev.filter(p => p.id !== id);
-          // If deleting current, select the first one
           if (id === currentPresetId) {
               setCurrentPresetId(newPresets[0].id);
           }
           return newPresets;
       });
+      logAudit('DELETE', `Deleted preset ${id}`);
   };
 
   const selectPreset = (id: string) => {
@@ -193,21 +257,14 @@ export const AIConfigProvider: React.FC<{ children: ReactNode }> = ({ children }
       }
   };
 
-  // Legacy wrappers
   const updateConfig = (newConfig: Partial<AIConfig>) => {
       updatePreset(currentPresetId, newConfig);
-      
-      // Special handling for provider change (load defaults)
-      if (newConfig.provider && newConfig.provider !== currentConfig.provider) {
-          const defaultForProvider = DEFAULT_CONFIGS[newConfig.provider];
-          updatePreset(currentPresetId, { ...defaultForProvider, ...newConfig });
-      }
   };
 
   const resetConfig = () => {
-      const defaultConfig = DEFAULT_CONFIGS[currentConfig.provider];
-      updatePreset(currentPresetId, defaultConfig);
+      updatePreset(currentPresetId, DEFAULT_CONFIG);
       setTestResult(null);
+      logAudit('RESET', `Reset config for preset ${currentPresetId}`);
   };
 
   const openSettings = () => setIsOpen(true);
@@ -221,17 +278,84 @@ export const AIConfigProvider: React.FC<{ children: ReactNode }> = ({ children }
     setTestResult(null);
     
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const apiKey = currentConfig.apiKey?.trim();
+      const rawBaseUrl = currentConfig.baseUrl?.trim();
+      const model = currentConfig.model?.trim() || DEFAULT_CONFIG.model;
 
-      if (!currentConfig.apiKey) {
-        throw new Error('API Key is missing');
+      if (!apiKey || !rawBaseUrl) {
+        throw new Error('未配置 API Key 或 Base URL。请先在设置中补全。');
       }
 
-      if (currentConfig.apiKey.length < 5) {
-        throw new Error('Invalid API Key format');
+      let baseUrl = rawBaseUrl;
+      if (!/^https?:\/\//i.test(baseUrl)) {
+        baseUrl = `https://${baseUrl}`;
       }
 
-      setTestResult({ success: true, message: 'Connection successful!' });
+      try {
+        const urlObj = new URL(baseUrl);
+        if (urlObj.search) {
+          const targetParam = urlObj.searchParams.get('target');
+          if (targetParam) {
+            baseUrl = urlObj.origin + urlObj.pathname;
+          }
+          if (urlObj.hostname === 'cloud.siliconflow.cn') {
+            baseUrl = 'https://api.siliconflow.cn/v1';
+          }
+        }
+      } catch {
+        throw new Error('Base URL 格式不正确，请输入完整 URL，例如 https://api.openai.com/v1');
+      }
+
+      baseUrl = baseUrl.replace(/\/$/, '');
+      const endpoint = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      };
+
+      let requestEndpoint = endpoint;
+      if (process.env.NODE_ENV !== 'production') {
+        requestEndpoint = '/__dm_llm_proxy';
+        headers['x-dm-endpoint'] = endpoint;
+      }
+
+      const resp = await fetch(requestEndpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'ping' }],
+          temperature: 0,
+          max_tokens: 1,
+          stream: false,
+        }),
+      });
+
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        let detail: string = errorText;
+        try {
+          const json = JSON.parse(errorText);
+          const candidate = json?.message ?? json?.error ?? json;
+          if (typeof candidate === 'string') {
+            detail = candidate;
+          } else {
+            detail = JSON.stringify(candidate);
+          }
+        } catch {
+          detail = errorText;
+        }
+        throw new Error(`连接失败: ${resp.status} - ${detail}`);
+      }
+
+      const data = await resp.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new Error('连接失败: 返回内容为空');
+      }
+
+      setTestResult({ success: true, message: '连接成功' });
       setIsTesting(false);
       return true;
     } catch (error) {

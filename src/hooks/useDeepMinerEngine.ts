@@ -505,14 +505,16 @@ export const useDeepMinerEngine = () => {
 
   const resetEngine = useCallback(() => {
     setState(prev => ({
+      ...prev,
       currentModeId: null,
       currentPhase: 1,
       globalContext: {},
       messages: [],
+      phases: {},
       isProcessing: false,
       isCompleted: false,
       hasStarted: false,
-      history: prev.history,
+      // history remains
       isLoadingHistory: false,
       historyError: null,
     }));
